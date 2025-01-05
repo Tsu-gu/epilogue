@@ -1,0 +1,11 @@
+[Unit]
+Description="Epilogue backend"
+After=network.target
+
+[Service]
+User=epilogue
+ExecStart=/app/backend/epilogue
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
