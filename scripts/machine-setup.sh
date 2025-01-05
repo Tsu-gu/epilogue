@@ -27,7 +27,7 @@ create_user() {
 }
 
 backend() {
-	install_packages "golang"
+	install_packages golang
 	cd backend
 	go build
 	cd -
@@ -39,15 +39,20 @@ backend() {
 }
 
 backend_dev() {
-	install_packages "golang inotify-tools"
+	install_packages golang inotify-tools
 	tmux new-window -t epilogue:2 -n 'backend'
 	tmux send 'su epilogue' ENTER
 	tmux send 'cd backend && while :; do go run . & p=$!; inotifywait -r -e modify .; kill $p; done' ENTER
 }
 
+database() {
+	install_packages postgresql postgresql-contrib
+	systemctl enable --now postgresql
+}
+
 frontend() {
 	# install deps
-	install_packages "npm nginx rsync"
+	install_packages npm nginx rsync
 
 	# build and copy build files
 	cd frontend
@@ -60,30 +65,51 @@ frontend() {
 }
 
 frontend_dev() {
-	install_packages "npm"
+	install_packages npm
 	tmux new-window -t epilogue:1 -n 'frontend'
 	tmux send 'su epilogue' ENTER
 	tmux send 'cd frontend && npm run dev' ENTER
 }
 
-standalone() {
+release() {
+	cp config/hosts.standalone /etc/hosts
 	backend
 	frontend
+	database
 }
 
-standalone_dev() {
-	install_packages "tmux"
+develop() {
+	install_packages tmux
 	systemd-run -p Type=forking tmux new-session -d -s epilogue
 
 	frontend_dev
 	backend_dev
+	database
+}
+
+required_commands() {
+	failure=0
+	for package in $*; do
+		if ! command -v $package &>/dev/null; then
+			failure=1
+			echo "$package is missing, install it in your system to make it work" >&2
+		fi
+	done
+	return $failure
 }
 
 container() {
+	if command -v apt &>/dev/null; then
+		install_packages systemd-container debootstrap
+	fi
+
+	if ! required_commands "systemd-nspawn debootstrap" ; then
+		return
+	fi
 
 	case "$1" in
 		"stop") machinectl stop $MACHINE; exit $? ;;
-		"shell") machinectl shell $MACHINE; exit $? ;;
+		"shell") machinectl shell $MACHINE /usr/bin/tmux a; exit $? ;;
 	esac
 
 	if ! [ -d $CONTAINER_DIR ]; then
@@ -102,6 +128,10 @@ if [ $UID -ne 0 ]; then
 	exit $?
 fi
 
+if [ -z $1 ]; then
+	exit 0
+fi
+
 if [ "$1" == "container" ]; then
 	container $2
 	exit $?
@@ -114,6 +144,6 @@ apt update
 apt upgrade -y
 
 case $1 in
-	"standalone") standalone ;;
-	"standalone-dev") standalone_dev ;;
+	"develop") develop ;;
+	"release") release ;;
 esac

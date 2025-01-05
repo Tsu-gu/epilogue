@@ -1,0 +1,55 @@
+services:
+  backend:
+    image: docker.io/golang:alpine
+    container_name: epilogue-backend-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/:/backend/
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@epilogue-db-dev/${POSTGRES_DB}
+      - MODE=${MODE}
+    working_dir: /backend/
+    entrypoint: sh /backend/dev.sh
+
+  frontend:
+    image: docker.io/node:alpine
+    container_name: epilogue-frontend-dev
+    restart: unless-stopped
+    depends_on:
+    - backend
+    volumes:
+      - ./frontend/:/frontend/:Z
+    working_dir: /frontend/
+    entrypoint: sh /frontend/dev.sh
+
+  www:
+    image: docker.io/nginx:alpine
+    container_name: epilogue-www-dev
+    volumes:
+      - ./www/nginx.dev.conf:/etc/nginx/nginx.conf
+    ports:
+      - 8080:80
+    depends_on:
+      - frontend
+
+  db:
+    image: docker.io/postgres:alpine
+    container_name: epilogue-db-dev
+    restart: unless-stopped
+    volumes:
+      - db:/var/lib/postgresql/data:Z
+    environment:
+    - POSTGRES_USER=${POSTGRES_USER}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    - POSTGRES_DB=${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U${POSTGRES_USER}"]
+      interval: 10m
+      start_period: 10s
+      start_interval: 3s
+
+volumes:
+  db:
+    name: epilogue-db-dev
