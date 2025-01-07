@@ -3,7 +3,7 @@ package db
 import (
 	"os"
 
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -22,7 +22,7 @@ func Connect() {
 	if mode == "Release" {
 		logger_ = logger.Silent
 	}
-	conn, err = gorm.Open(sqlite.Open("epilogue.db"), &gorm.Config{
+	db, err = gorm.Open(postgres.Open("epilogue.db"), &gorm.Config{
 		SkipDefaultTransaction: true,
 		PrepareStmt:            true,
 		Logger:                 logger.Default.LogMode(logger_),
